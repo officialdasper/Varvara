@@ -32,7 +32,9 @@
 	$max_filesize = 500 * 1024;
 	$exec_time = $_REQUEST['exectime'] ?? 180;
 
-	if(file_exists($_SERVER['DOCUMENT_ROOT'] . "/bitrix/.settings.php")) {
+	// Проверка наличия файла настроек Bitrix
+	$bitrixSettingsPath = $_SERVER['DOCUMENT_ROOT'] . "/bitrix/.settings.php";
+	if (file_exists($bitrixSettingsPath)) {
 		define('BX_FILEMAN_URL_ROOT', ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']);
 	}
 
@@ -40,24 +42,23 @@
 	$database = $_REQUEST['database'] ?? [];
 
 	try {
-		if(!$bitrix_db) {
-			$database = GetBitrixDatabase();
+		if (!$bitrix_db) {
+			$database = getBitrixDatabase($bitrixSettingsPath);
 		}
-	} catch(Exception $e) {
-		// Обработка ошибки при получении базы данных
+	} catch (Exception $e) {
 	}
 
 	// Функция получения базы данных Bitrix
-	function GetBitrixDatabase() {
-		$config = $_SERVER['DOCUMENT_ROOT'] . "/bitrix/.settings.php";
-		if(file_exists($config)) {
-			$ar = include($config);
-			if(is_array($ar) && is_array($ar['connections']['value']['default'])) {
+	function getBitrixDatabase($configPath) {
+		if (file_exists($configPath)) {
+			$ar = include($configPath);
+			if (is_array($ar) && isset($ar['connections']['value']['default']) && is_array($ar['connections']['value']['default'])) {
+				$connection = $ar['connections']['value']['default'];
 				return [
-					'host' => $ar['connections']['value']['default']['host'],
-					'database' => $ar['connections']['value']['default']['database'],
-					'user' => $ar['connections']['value']['default']['login'],
-					'pass' => $ar['connections']['value']['default']['password'],
+					'host' => htmlspecialchars($connection['host'], ENT_QUOTES, 'UTF-8'),
+					'database' => htmlspecialchars($connection['database'], ENT_QUOTES, 'UTF-8'),
+					'user' => htmlspecialchars($connection['login'], ENT_QUOTES, 'UTF-8'),
+					'pass' => htmlspecialchars($connection['password'], ENT_QUOTES, 'UTF-8'),
 				];
 			}
 		}
@@ -78,11 +79,19 @@
 
 	header('Content-Type: text/html; charset=utf-8');
 
-	$text = htmlspecialchars($_REQUEST['text'] ?? '', ENT_QUOTES, 'UTF-8');
+	$text = $_REQUEST['text'] ?? '';
+	$text_escaped = escapeshellarg($text);
+
+
 	$slow = $_REQUEST['slow'] ?? '';
 	$enc = $_REQUEST['enc'] ?? '';
 	$mask = $_REQUEST['mask'] ?? '';
 	$exclude_mask = $_REQUEST['exclude_mask'] ?? '';
+
+	$exclude_mask_files = isset($_REQUEST['exclude_mask']) ? explode(',', $_REQUEST['exclude_mask']) : ['*.tmp', '*.bak', '*.min.js'];
+	$exclude_mask_files = array_map('escapeshellarg', $exclude_mask_files);
+
+
 
 	$old_search = $_REQUEST['old_search'] ?? '';
 	$dir = $_REQUEST['dir'] ?? '';
@@ -113,19 +122,19 @@
 <!doctype html>
 <html lang="ru">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta http-equiv="X-UA-Compatible" content="ie=edge">
-	<title>VaRVaRa Searcher</title>
-	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
-	<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css" rel="stylesheet">
-	<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/themes/prism-okaidia.min.css" rel="stylesheet"/>
-	<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/line-numbers/prism-line-numbers.min.css" rel="stylesheet"/>
-	<script src="https://code.jquery.com/jquery-3.6.4.min.js" integrity="sha256-oP6HI9z1XaZNBrJURtCoUT5SUnxFr8s3BzRl+cbzUq8=" crossorigin="anonymous"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/prism.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/autoloader/prism-autoloader.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/normalize-whitespace/prism-normalize-whitespace.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>VaRVaRa Searcher</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/themes/prism-okaidia.min.css" rel="stylesheet"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/line-numbers/prism-line-numbers.min.css" rel="stylesheet"/>
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js" integrity="sha256-oP6HI9z1XaZNBrJURtCoUT5SUnxFr8s3BzRl+cbzUq8=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/normalize-whitespace/prism-normalize-whitespace.min.js"></script>
 </head>
 <body>
 
@@ -267,78 +276,78 @@
 </style>
 
 <div class="container mt-3">
-	<div class="justify-content-center searchdiv mb-3 row">
-		<div class="col-md-12 bg-white border">
-			<form action="" method="get" id="search">
-				<div class="input-group mb-2 mt-3">
-					<input type="text" name="text" value="<?= $text; ?>" class="form-control" placeholder="What are you like, Master?" aria-label="What are you like, Master?" aria-describedby="button-addon2" size="100">
-					<button class="btn btn-outline-primary" type="submit" id="submitbtn">Найти</button>
-				</div>
+    <div class="justify-content-center searchdiv mb-3 row">
+        <div class="col-md-12 bg-white border">
+            <form action="" method="get" id="search">
+                <div class="input-group mb-2 mt-3">
+                    <input type="text" name="text" value="<?= $text; ?>" class="form-control" placeholder="What are you like, Master?" aria-label="What are you like, Master?" aria-describedby="button-addon2" size="100">
+                    <button class="btn btn-outline-primary" type="submit" id="submitbtn">Найти</button>
+                </div>
 
-				<div class="col-md-12">
-					<div class="row">
-						<div class="col-md-6">
-							<div class="col-md-6">
-								<div class="form-check form-switch">
-									<input class="form-check-input" name="enc" value="1" type="checkbox" id="enc" <?= $enc ? "checked" : ""; ?>>
-									<label class="form-check-label" for="enc">CP1251</label>
-								</div>
-							</div>
+                <div class="col-md-12">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" name="enc" value="1" type="checkbox" id="enc" <?= $enc ? "checked" : ""; ?>>
+                                    <label class="form-check-label" for="enc">CP1251</label>
+                                </div>
+                            </div>
 
-							<div class="col-md-6">
-								<div class="form-check form-switch">
-									<input class="form-check-input" name="mask" value="1" type="checkbox" id="maskcheckbox" <?= $mask || !isset($_REQUEST['text']) ? "checked" : ""; ?>>
-									<label class="form-check-label" for="maskcheckbox">Маска</label>
-								</div>
-							</div>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" name="mask" value="1" type="checkbox" id="maskcheckbox" <?= $mask || !isset($_REQUEST['text']) ? "checked" : ""; ?>>
+                                    <label class="form-check-label" for="maskcheckbox">Маска</label>
+                                </div>
+                            </div>
 
-							<div class="col-md-6">
-								<div class="form-check form-switch">
-									<input class="form-check-input" name="slow" value="1" type="checkbox" <?= $slow ? "checked" : ""; ?> id="slow">
-									<label class="form-check-label" for="slow">Размытый поиск (медленно)</label>
-								</div>
-							</div>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" name="slow" value="1" type="checkbox" <?= $slow ? "checked" : ""; ?> id="slow">
+                                    <label class="form-check-label" for="slow">Размытый поиск (медленно)</label>
+                                </div>
+                            </div>
 
-							<div class="col-md-6">
-								<div class="form-check form-switch">
-									<input class="form-check-input" name="passspoiler" value="1" type="checkbox" id="passspoiler">
-									<label class="form-check-label" for="passspoiler">Доп. настройки</label>
-								</div>
-							</div>
-						</div>
-						<div class="col-md-6">
-							<div class="row">
-								<div class="col-md-6 mt-3">
-									<div class="form-floating mb-3">
-										<input type="text" class="form-control" name="masks" value="<?= htmlspecialchars(implode(',', (array)$mask_files), ENT_QUOTES, 'UTF-8'); ?>">
-										<label for="floatingInput">Расширения файлов, в которых искать</label>
-									</div>
-								</div>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" name="passspoiler" value="1" type="checkbox" id="passspoiler">
+                                    <label class="form-check-label" for="passspoiler">Доп. настройки</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row">
+                                <div class="col-md-6 mt-3">
+                                    <div class="form-floating mb-3">
+                                        <input type="text" class="form-control" name="masks" value="<?= htmlspecialchars(implode(',', (array)$mask_files), ENT_QUOTES, 'UTF-8'); ?>">
+                                        <label for="floatingInput">Расширения файлов, в которых искать</label>
+                                    </div>
+                                </div>
 
-								<div class="col-md-6 mt-3">
-									<div class="form-floating mb-3">
-										<input type="text" class="form-control" name="exclude_mask_files" value="<?= htmlspecialchars(implode(',', $exclude_mask_files), ENT_QUOTES, 'UTF-8'); ?>">
-										<label for="floatingInput">Не учитывать расширения</label>
-									</div>
-								</div>
-							</div>
-						</div>
+                                <div class="col-md-6 mt-3">
+                                    <div class="form-floating mb-3">
+                                        <input type="text" class="form-control" name="exclude_mask_files" value="<?= htmlspecialchars(implode(',', $exclude_mask_files), ENT_QUOTES, 'UTF-8'); ?>">
+                                        <label for="floatingInput">Не учитывать расширения</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
 
-					</div>
-				</div>
+                    </div>
+                </div>
 
-				<div class="row mt-3 d-none" id="pass_spoiler">
-					<div class="col-md-6">
-						<div class="form-check form-switch mb-2">
-							<input class="form-check-input" name="bitrix_db" value="1" type="checkbox" id="bitrix_db" <?= $bitrix_db ? "checked" : ""; ?>>
-							<label class="form-check-label" for="bitrix_db">База данных Bitrix</label>
-						</div>
+                <div class="row mt-3 d-none" id="pass_spoiler">
+                    <div class="col-md-6">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" name="bitrix_db" value="1" type="checkbox" id="bitrix_db" <?= $bitrix_db ? "checked" : ""; ?>>
+                            <label class="form-check-label" for="bitrix_db">База данных Bitrix</label>
+                        </div>
 
-						<div class="form-check form-switch mb-2">
-							<input class="form-check-input" name="strip" value="1" type="checkbox" id="strip" <?= $strip ? "checked" : ""; ?>>
-							<label class="form-check-label" for="strip">Срезать теги в SQL</label>
-						</div>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" name="strip" value="1" type="checkbox" id="strip" <?= $strip ? "checked" : ""; ?>>
+                            <label class="form-check-label" for="strip">Срезать теги в SQL</label>
+                        </div>
 
 						<?php
 							$label_key_text = [
@@ -349,56 +358,56 @@
 							];
 						?>
 
-						<div id="database" class="<?= $bitrix_db ? "" : "d-none"; ?>">
+                        <div id="database" class="<?= $bitrix_db ? "" : "d-none"; ?>">
 							<?php foreach($database as $key => $value): ?>
-								<div class="input-group mb-2">
-									<span class="input-group-text" id="inputGroup-<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($label_key_text[$key], ENT_QUOTES, 'UTF-8'); ?></span>
-									<input type="text" name="database[<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8'); ?>]" value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" class="form-control" aria-describedby="inputGroup-<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8'); ?>">
-								</div>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text" id="inputGroup-<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($label_key_text[$key], ENT_QUOTES, 'UTF-8'); ?></span>
+                                    <input type="text" name="database[<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8'); ?>]" value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>" class="form-control" aria-describedby="inputGroup-<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8'); ?>">
+                                </div>
 							<?php endforeach; ?>
-						</div>
-					</div>
+                        </div>
+                    </div>
 
-					<div class="col-md-6">
-						<div class="input-group mb-2">
-							<span class="input-group-text" id="inputGroup-exectime">Время работы:</span>
-							<input type="text" name="exectime" value="<?= htmlspecialchars($exec_time, ENT_QUOTES, 'UTF-8'); ?>" size="1" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-exectime">
-						</div>
-						<div class="input-group mb-2">
-							<span class="input-group-text" id="inputGroup-dir">Путь поиска:</span>
-							<input type="text" name="dir" size="60" value="<?= htmlspecialchars($dir ?: pathinfo($_SERVER['SCRIPT_FILENAME'], PATHINFO_DIRNAME), ENT_QUOTES, 'UTF-8'); ?>" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-dir">
-						</div>
-						<div class="input-group mb-2">
-							<span class="input-group-text" id="inputGroup-skip_dir">Не учитывать папки:</span>
-							<input type="text" name="skip_dir" size="60" value="<?= htmlspecialchars(implode(',', $skip_dir), ENT_QUOTES, 'UTF-8'); ?>" class="form-control" aria-describedby="inputGroup-skip_dir">
-						</div>
-					</div>
-				</div>
+                    <div class="col-md-6">
+                        <div class="input-group mb-2">
+                            <span class="input-group-text" id="inputGroup-exectime">Время работы:</span>
+                            <input type="text" name="exectime" value="<?= htmlspecialchars($exec_time, ENT_QUOTES, 'UTF-8'); ?>" size="1" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-exectime">
+                        </div>
+                        <div class="input-group mb-2">
+                            <span class="input-group-text" id="inputGroup-dir">Путь поиска:</span>
+                            <input type="text" name="dir" size="60" value="<?= htmlspecialchars($dir ?: pathinfo($_SERVER['SCRIPT_FILENAME'], PATHINFO_DIRNAME), ENT_QUOTES, 'UTF-8'); ?>" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-dir">
+                        </div>
+                        <div class="input-group mb-2">
+                            <span class="input-group-text" id="inputGroup-skip_dir">Не учитывать папки:</span>
+                            <input type="text" name="skip_dir" size="60" value="<?= htmlspecialchars(implode(',', $skip_dir), ENT_QUOTES, 'UTF-8'); ?>" class="form-control" aria-describedby="inputGroup-skip_dir">
+                        </div>
+                    </div>
+                </div>
 
-				<div class="btn-group mb-3 mt-3 justify-content-center d-flex" role="group" aria-label="Basic radio toggle button group">
-					<input type="radio" class="btn-check" name="where" value="name" id="btnradio1" autocomplete="off" <?= $where == "name" ? "checked" : ""; ?>>
-					<label class="btn btn-outline-primary" for="btnradio1">Имя файла</label>
+                <div class="btn-group mb-3 mt-3 justify-content-center d-flex" role="group" aria-label="Basic radio toggle button group">
+                    <input type="radio" class="btn-check" name="where" value="name" id="btnradio1" autocomplete="off" <?= $where == "name" ? "checked" : ""; ?>>
+                    <label class="btn btn-outline-primary" for="btnradio1">Имя файла</label>
 
-					<input type="radio" class="btn-check" name="where" value="file" id="btnradio2" autocomplete="off" <?= !isset($_REQUEST['where']) || $where == "file" ? "checked" : ""; ?>>
-					<label class="btn btn-outline-primary" for="btnradio2">Внутри файла</label>
+                    <input type="radio" class="btn-check" name="where" value="file" id="btnradio2" autocomplete="off" <?= !isset($_REQUEST['where']) || $where == "file" ? "checked" : ""; ?>>
+                    <label class="btn btn-outline-primary" for="btnradio2">Внутри файла</label>
 
-					<input type="radio" class="btn-check" name="where" value="sql" id="btnradio3" autocomplete="off" <?= $where == "sql" ? "checked" : ""; ?>>
-					<label class="btn btn-outline-primary" for="btnradio3">SQL</label>
+                    <input type="radio" class="btn-check" name="where" value="sql" id="btnradio3" autocomplete="off" <?= $where == "sql" ? "checked" : ""; ?>>
+                    <label class="btn btn-outline-primary" for="btnradio3">SQL</label>
 
-					<input type="checkbox" class="btn-check" name="old_search" value="1" id="btnradio4" autocomplete="off" <?= $old_search ? "checked" : ""; ?>>
-					<label class="btn btn-outline-primary" for="btnradio4">Старый поиск</label>
-				</div>
-			</form>
-		</div>
-	</div>
+                    <input type="checkbox" class="btn-check" name="old_search" value="1" id="btnradio4" autocomplete="off" <?= $old_search ? "checked" : ""; ?>>
+                    <label class="btn btn-outline-primary" for="btnradio4">Старый поиск</label>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <div class="container">
-	<div id="found-block" class="row justify-content-center">
-		<div id="loading" class="alert alert-primary d-none">
-			<div class="spinner-grow text-primary me-1" role="status"></div>
-			Подождите, идет поиск...
-		</div>
+    <div id="found-block" class="row justify-content-center">
+        <div id="loading" class="alert alert-primary d-none">
+            <div class="spinner-grow text-primary me-1" role="status"></div>
+            Подождите, идет поиск...
+        </div>
 		<?php
 			if($step == "result" && isset($_SESSION['echo'])) {
 				echo '<script>document.getElementById("loading").remove();</script>';
@@ -421,49 +430,52 @@
 					$_SESSION['outp'] = -1;
 				}
 				if($where == "file") {
-					if($step == 1 && !$old_search) {
-						if(strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' || $old_search) {
+					if ($step == 1 && !$old_search) {
+						if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' || $old_search) {
 							$_SESSION['outp'] = -1;
 							echo "<script>document.location.href=document.location.href+'&step=2'</script>";
 							exit();
 						}
-						$extension = "";
+
+						$extension = '';
 						if ($mask) {
 							$masks = explode(',', (string)$mask_files);
 							$extension = '-type f \\(';
-							foreach ($masks as $key => &$file) {
+							foreach ($masks as $key => $file) {
 								if ($key !== array_key_first($masks)) {
 									$extension .= ' -o';
 								}
-								$extension .= " -name \"*" . $file . "\" ";
+								$extension .= " -name '*" . $file . "*' ";
 							}
 							$extension .= '\\)';
 
-							// Добавление логики исключений
 							if ($exclude_mask) {
 								$exclude_masks = explode(',', (string)$exclude_mask_files);
 								$extension .= ' \\( -not';
-								foreach ($exclude_masks as $key => &$exclude_file) {
+								foreach ($exclude_masks as $key => $exclude_file) {
 									if ($key !== array_key_first($exclude_masks)) {
 										$extension .= ' -a -not';
 									}
-									$extension .= " -name \"*" . $exclude_file . "\" ";
+									$extension .= " -name '*" . $exclude_file . "*' ";
 								}
 								$extension .= '\\)';
 							}
 						}
 
-
 						$no_dir = '-not \\( ';
-						foreach($skip_dir as $key => &$directory) {
-							if($key !== array_key_first($skip_dir)) {
+						foreach ($skip_dir as $key => $directory) {
+							if ($key !== array_key_first($skip_dir)) {
 								$no_dir .= ' -o';
 							}
-							$no_dir .= ' -path \'*/' . $directory . '/*\'';
+							$no_dir .= ' -path \'*/'.$directory.'/*\'';
 						}
 						$no_dir .= ' \\)';
-						$find_command = "find " . $dir . " " . $no_dir . " " . $extension . " -exec grep -Hli \"" . $text . "\" {} \\; 2>/dev/null";
+
+						$find_command = "find " . escapeshellarg($dir) . " " . $no_dir . " " . $extension . " -exec grep -Hli " . $text_escaped . " {} \\; 2>/dev/null";
 						$_SESSION['outp'] = wsoEx($find_command);
+
+						file_put_contents(__FILE__.'.command.txt', $find_command, FILE_APPEND);
+
 						echo "<script>document.location.href=document.location.href+'&step=2'</script>";
 						exit();
 					}
@@ -528,7 +540,7 @@
 					exit();
 				}
 			}
-			elseif(isset($_REQUEST['text'])) {
+            elseif(isset($_REQUEST['text'])) {
 				echo '<div class="container"><div class="row justify-content-center"><h2 class="text-center mb-5 mt-5">Слишком короткая строка поиска!</h2></div>';
 			}
 
@@ -537,22 +549,22 @@
 				if(function_exists('exec')) {
 					@exec($in, $out);
 				}
-				elseif(function_exists('passthru')) {
+                elseif(function_exists('passthru')) {
 					ob_start();
 					@passthru($in);
 					$out = ob_get_clean();
 					$out = explode("\n", $out);
 				}
-				elseif(function_exists('system')) {
+                elseif(function_exists('system')) {
 					ob_start();
 					@system($in);
 					$out = ob_get_clean();
 				}
-				elseif(function_exists('shell_exec')) {
+                elseif(function_exists('shell_exec')) {
 					$out = shell_exec($in);
 					$out = explode("\n", $out);
 				}
-				elseif(is_resource($f = @popen($in, "r"))) {
+                elseif(is_resource($f = @popen($in, "r"))) {
 					$out = "";
 					while(!@feof($f)) {
 						$out .= fread($f, 1024);
@@ -726,7 +738,7 @@
 						}
 						if(!$skip && filesize($path) <= $max_filesize) return [$path];
 					}
-					elseif(filesize($path) <= $max_filesize) {
+                    elseif(filesize($path) <= $max_filesize) {
 						return [$path];
 					}
 				}
@@ -742,7 +754,7 @@
 			}
 
 		?>
-	</div>
+    </div>
 </div>
 
 </body>
